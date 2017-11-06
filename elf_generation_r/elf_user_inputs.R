@@ -7,8 +7,8 @@ site <- "http://deq1.bse.vt.edu/d.dh"    #Specify the site of interest, either d
 #----------------------------------------------
 
 #----FOR RUNNING LOCALLY:
-#fxn_locations <- "C:\\Users\\nrf46657\\Desktop\\VAHydro Development\\GitHub\\dhFlowEcoPoint-R\\"          #Specify location of supporting function .R files
-#save_directory <- "C:\\Users\\nrf46657\\Desktop\\VAHydro Development\\GitHub\\dhFlowEcoPoint-R\\plots"  #Specify location for storing plot images locally
+#fxn_locations <- "C:\\Users\\nrf46657\\Desktop\\point_analysis\\"          #Specify location of supporting function .R files
+#save_directory <- "C:\\Users\\nrf46657\\Desktop\\point_analysis\\plots"  #Specify location for storing plot images locally
 
 #----FOR RUNNING FROM SERVER:
 fxn_locations <- "/var/www/html/files/dh/flow_ecology/d.dh/"
@@ -31,6 +31,7 @@ x_metric <- as.character(apt_props[which(apt_props$propname == "analysis_pt_x"),
 pct_chg <- as.numeric(as.character(apt_props[which(apt_props$propname == "analysis_pt_pct_reduction"),"propcode"]))
 ws_ftype <- as.character(apt_props[which(apt_props$propname == "analysis_pt_region"),"propcode"])
 sampres <- as.character(apt_props[which(apt_props$propname == "analysis_pt_sampres"),"propcode"])
+method <- as.character(apt_props[which(apt_props$propname == "analysis_pt_method"),"propcode"])
 
 #RETRIEVE ANALYSIS POINT REGION HYDROCODE
 apt_region <- paste(site,"elf-point-to-region/279034",ws_ftype,sep="/")
@@ -54,6 +55,15 @@ if (ws_ftype == 'nhd_huc10') {
 }
 
 
+if (method == "elf_quantreg") {
+  quantreg <- "YES"
+  pw_it <- "NO"
+} else if (method == "elf_quantreg_pwit") {
+  quantreg <- "NO"
+  pw_it <- "YES"
+}
+
+
 #------------------------------------------------------------------------------------------------
 #User inputs 
 inputs <- list(
@@ -70,20 +80,18 @@ inputs <- list(
   target_hydrocode = target_hydrocode,
   quantile = .9,                  #Specify the quantile to use for quantile regresion plots 
   xaxis_thresh = 15000,            #Leave at 15000 so all plots have idential axis limits 
-  startdate = '1600-01-01',        #Leave at 1600-01-01 when batch processing to encompass all sample dates (different date-ranges can be used for later analyses)
-  enddate = '2100-12-31',          #Leave at 2100-12-31 when batch processing to encompass all sample dates 
+  #analysis_timespan = '1990-2000',#used to subset data on date range 
+  analysis_timespan = 'full',      #used to plot for entire timespan 
   send_to_rest = "NO",             #"YES" to set ELF stats as drupal submittal properties, "NO" otherwise
   station_agg = "max",             #Specify aggregation to only use the "max" NT value for each station or "all" NT values
-  sampres = sampres,                  
-
-  quantreg = "YES",  #Plot using quantile regression method (YES or NO)
-  ymax = "NO",      #Plot using breakpoint at x-value corresponding to max y-value (YES or NO)
-  pw_it = "NO",     #Plot using breakpoint determined by piecewise iterative function (YES or NO)
-  twopoint = "NO",    #Plot using basic two-point ELF method (YES or NO)
-  glo = 1,  # Breakpoint flow (sqmi) lower boundary value for PWIT method
-  ghi = 400, # breakpoint flow (sqmi) upper boundary value for PWIT method AND Breakpoint for basic quantreg method
-             # current values, q25 = 72, q50 = 205, q75 = 530
-  dataset_tag = NULL, # unique indicator of a grouped dataset
+  sampres = sampres,  
+  quantreg = quantreg,
+  pw_it = pw_it,
+  glo = 1,   # PWIT Breakpoint lower guess (sqmi/cfs)
+  ghi = 530, # PWIT Breakpoint upper guess (sqmi/cfs) - also used as DA breakpoint for elf_quantreg method
+             # ghi values determined from ymax analyses,  q25 = 72 
+             #                                            q50 = 205 
+             #                                            q75 = 530
   token = token
 ) 
 

@@ -10,15 +10,14 @@ library(scales);
 #Load elf skip function               
 source(paste(fxn_locations,"elf_skip.R", sep = ""));
 
-elf_quantreg <- function(inputs, data, x_metric_code, y_metric_code, ws_ftype_code, Feature.Name_code, Hydroid_code, search_code, token, nhdplus_flowmetric_value){
+elf_quantreg <- function(inputs, data, x_metric_code, y_metric_code, ws_ftype_code, Feature.Name_code, Hydroid_code, search_code, token, nhdplus_flowmetric_value, startdate, enddate){
     
+  #Load inputs
   x_metric <- x_metric_code
   y_metric <- y_metric_code
   Feature.Name <- Feature.Name_code
   Hydroid <- Hydroid_code
   ws_ftype <- ws_ftype_code
-  
-  #Load inputs
   pct_chg <- inputs$pct_chg 
   save_directory <- inputs$save_directory 
   target_hydrocode <- inputs$target_hydrocode
@@ -26,8 +25,7 @@ elf_quantreg <- function(inputs, data, x_metric_code, y_metric_code, ws_ftype_co
   xaxis_thresh <- inputs$xaxis_thresh
   send_to_rest <- inputs$send_to_rest
   offset <- inputs$offset
-  startdate <- inputs$startdate
-  enddate <- inputs$enddate
+  analysis_timespan <- inputs$analysis_timespan
   station_agg <- inputs$station_agg
   site <- inputs$site
   sampres <- inputs$sampres
@@ -36,6 +34,7 @@ elf_quantreg <- function(inputs, data, x_metric_code, y_metric_code, ws_ftype_co
 
   full_dataset <- data
   
+  #Convert ghi input from sqmi to sqkm, and remove datapoints greater than the ghi DA threashold
   data<-data[!(data$drainage_area > (ghi * 2.58999)),]
   subset_n <- length(data$metric_value)
   # do not convert ghi here since we want to store breakpoint as sqmi not sqkm
@@ -45,8 +44,6 @@ elf_quantreg <- function(inputs, data, x_metric_code, y_metric_code, ws_ftype_co
   duplicates <- unique(data$attribute_value, incomparables = FALSE)
   if(nrow(data) && length(duplicates) > 3) {  
           
-
-    
           up90 <- rq(metric_value ~ log(attribute_value),data = data, tau = quantile) #calculate the quantile regression
           newy <- c(log(data$attribute_value)*coef(up90)[2]+coef(up90)[1])            #find the upper quantile values of y for each value of DA based on the quantile regression
           upper.quant <- subset(data, data$metric_value > newy)                        #create a subset of the data that only includes the stations with NT values higher than the y values just calculated
@@ -93,74 +90,48 @@ print(paste("Upper quantile has ", nrow(upper.quant), "values"));
             biometric_row <- which(metric_table$varkey == y_metric)
             biomeric_name <- metric_table[biometric_row,]
             biometric_title <- biomeric_name$varname                #needed for human-readable plot titles
-            y_metric_varid <- biomeric_name$varid                   #needed for admincode
             
             flow_row <- which(metric_table$varkey == x_metric)
             flow_name <- metric_table[flow_row,]
             flow_title <- flow_name$varname                         #needed for human-readable plot titles
-            x_metric_varid <- flow_name$varid                       #needed for admincode
 
-            #Ensuring uniqueness in submittal admincodes (coding beacuse of limited admincode characters)
-            if (station_agg == 'max') {
-              statagg <- 1
-            } else {
-              statagg <- 2
-            }
-
-            if (sampres == 'species') {
-              smprs <- 1
-            } else if(sampres == 'maj_fam_gen_spec') {
-              smprs <- 2
-            } else if(sampres == 'maj_fam_gen') {
-              smprs <- 3
-            } else if(sampres == 'maj_fam') {
-              smprs <- 4
-            } else if (sampres == 'maj_spec') {
-              smprs <- 5
-            }
-
-#admincode <- paste(Hydroid,"fe_quantreg",
-#                   x_metric_varid,y_metric_varid,quantile,
-#                   statagg,smprs,startdate,enddate,dataset_tag, sep='_');
-
-            admincode <- paste(Hydroid,"fe_quantreg",
-                               x_metric_varid,y_metric_varid,quantile,
-                               statagg,smprs,startdate,enddate,ghi,sep='_');           
+            admincode <-paste(Hydroid,"_fe_quantreg",sep="");       
             
             
         # stash the regression statistics using REST  
            if (send_to_rest == 'YES') {
    
-            qd <- list(
-              featureid = Hydroid,
-              admincode = admincode,
-              name = paste( "Quantile Regression, ", y_metric, ' = f( ', x_metric, ' ), upper ',quantile * 100, '%', sep=''),
-              ftype = 'fe_quantreg',
-              startdate = startdate,
-              enddate = enddate,
-              site = site,
-              x = x_metric,
-              y = y_metric,
-              stats = list(
-                stat_quantreg_m = ruslope,
-                stat_quantreg_b = ruint,
-                stat_quantreg_n = rucount,
-                stat_quantreg_p = rup,
-                stat_quantreg_rsq = rurs,
-                stat_quantreg_adj_rsq = rursadj,
-                stat_quantreg_qu = quantile,
-                stat_quantreg_x = x_metric,
-                stat_quantreg_y = y_metric,
-                station_agg =station_agg,
-                sampres = sampres,
-                stat_quantreg_bkpt = stat_quantreg_bkpt
-                
-              )
-            );
-print("Storing quantile regression.");
-            qd;
-            elf_store_data (qd, token, inputs)
-            }
+             qd <- list(
+               featureid = Hydroid,
+               admincode = admincode,
+               name = paste( "Quantile Regression, ", y_metric, ' = f( ', x_metric, ' ), upper ',quantile * 100, '%', sep=''),
+               ftype = 'fe_quantreg',
+               site = site,
+               x = x_metric,
+               y = y_metric,
+               stats = list(
+                 stat_quantreg_m = ruslope,
+                 stat_quantreg_b = ruint,
+                 stat_quantreg_n = rucount,
+                 stat_quantreg_p = rup,
+                 stat_quantreg_rsq = rurs,
+                 stat_quantreg_adj_rsq = rursadj,
+                 stat_quantreg_qu = quantile,
+                 stat_quantreg_x = x_metric,
+                 stat_quantreg_y = y_metric,
+                 station_agg =station_agg,
+                 sampres = sampres,
+                 stat_quantreg_bkpt = stat_quantreg_bkpt,
+                 stat_quantreg_glo = 0,
+                 stat_quantreg_ghi = ghi,
+                 analysis_timespan = analysis_timespan
+               )
+             );
+             print("Storing quantile regression.");
+             adminid <- elf_store_data(qd, token, inputs, adminid)
+           } else {
+             adminid <- paste(target_hydrocode,"_fe_quantreg",sep="") #Plot images are stored using watershed hydrocode when NOT performing REST 
+           }
 
             #Display only 3 significant digits on plots
             plot_ruslope <- signif(ruslope, digits = 3)
@@ -188,10 +159,10 @@ print("Storing quantile regression.");
             
             #Plot titles
             plot_title <- paste(Feature.Name," (",sampres," grouping)\n",
-                            startdate," to ",
-                            enddate,"\n\nQuantile Regression: (breakpoint at DA = ", ghi, 
-                            ' sqmi, (ghi  * 2.58999)',' sqkm)',
-                            sep=""); #,"\n","\n",search_code,"  (",y_metric,")  vs  (",x_metric,")","\n",sep="");
+                                startdate," to ",
+                                enddate,"\n\nQuantile Regression: (breakpoint at DA = ", ghi, 
+                                ' sqmi, ', round((ghi  * 2.58999),digits=0),' sqkm)',
+                                sep="");
             xaxis_title <- paste(flow_title,"\n","\n","m: ",plot_ruslope,"    b: ",plot_ruint,"    r^2: ",plot_rurs,"    adj r^2: ",plot_rursadj,"    p: ",plot_rup,"\n","    Upper ",((1 - quantile)*100),"% n: ",rucount,"    Data Subset n: ",subset_n,sep="");
             yaxis_title <- paste(biometric_title);
             EDAS_upper_legend <- paste("Data Subset (Upper ",((1 - quantile)*100),"%)",sep="");

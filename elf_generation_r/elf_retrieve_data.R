@@ -13,7 +13,6 @@ source(paste(fxn_locations,"elf_skip.R", sep = ""));
 elf_retrieve_data <- function(inputs = list()){
 
   x_metric <- inputs$x_metric 
-  #print(x_metric)
   y_metric <- inputs$y_metric 
   ws_ftype <- inputs$ws_ftype
   target_hydrocode <- inputs$target_hydrocode
@@ -24,8 +23,7 @@ elf_retrieve_data <- function(inputs = list()){
   site <- inputs$site
   xaxis_thresh <- inputs$xaxis_thresh
   sampres <- inputs$sampres
-  startdate <- inputs$startdate
-  enddate <- inputs$enddate
+  analysis_timespan <- inputs$analysis_timespan
   station_agg <- inputs$station_agg
   quantreg <- inputs$quantreg 
   ymax <- inputs$ymax   
@@ -119,7 +117,19 @@ for (k in offset_y_metric:length(y_metric)) {
       data$metric_value <- as.numeric(data$metric_value)
       #Subset by date range 
       data$tstime <- as.Date(data$tstime,origin="1970-01-01")
-      data <- subset(data, tstime > startdate & tstime < enddate)
+      
+      if (analysis_timespan != 'full') {
+        #Need to convert timespan paramteter into startdate and endate format for subsetting data 
+        startdate <- paste(unlist(strsplit(analysis_timespan, "[-]"))[[1]],"-01-01",sep="")
+        enddate <- paste(unlist(strsplit(analysis_timespan, "[-]"))[[2]],"-12-31",sep="")
+        print(paste("startdate: ", startdate))
+        print(paste("enddate: ", enddate))
+        data <- subset(data, tstime > startdate & tstime < enddate)
+        startdate <- paste("subset: ",startdate,sep="")
+      } else {        
+        startdate <- paste("full timespan: ",min(data$tstime),sep="") #if plotting for full timespan, display start and end dates above plot
+        enddate <- max(data$tstime)   #no dates set with REST, only "full" for analysis_timespan propcode
+      }
       
       #ADD COLUMN OF RATIO OF DRAINAGE AREA TO MEAN FLOW 
       data["ratio"] <- (data$drainage_area)/(data$qmean_annual)
@@ -179,18 +189,18 @@ for (k in offset_y_metric:length(y_metric)) {
       #Load Functions               
       source(paste(fxn_locations,"elf_quantreg.R", sep = ""));       #loads elf_quantreg function
       #source(paste(fxn_locations,"elf_ymax.R", sep = ""));           #loads elf_ymax function
-      #source(paste(fxn_locations,"elf_pw_it.R", sep = ""));          #loads ef_pw_it function
+      source(paste(fxn_locations,"elf_pw_it.R", sep = ""));          #loads ef_pw_it function
       #source(paste(fxn_locations,"elf_twopoint.R", sep = ""));       #loads elf_twopoint function
       source(paste(fxn_locations,"elf_pct_chg.R", sep =""));         #loads percent change barplot function
       #source(paste(fxn_locations,"elf_store_data.R", sep = ""));     #loads function used to store ELF stats to VAHydro
       source(paste(fxn_locations,"nhdplus_erom_plot.R", sep = ""));  
       
       if(quantreg == "YES") {print(paste("PLOTTING - method quantreg breakpoint ...",sep="")) 
-                            elf_quantreg (inputs, data, x_metric_code, y_metric_code, ws_ftype_code, Feature.Name_code, Hydroid_code, search_code, token, nhdplus_flowmetric_value)}
+                            elf_quantreg (inputs, data, x_metric_code, y_metric_code, ws_ftype_code, Feature.Name_code, Hydroid_code, search_code, token, nhdplus_flowmetric_value, startdate, enddate)}
      #if(ymax == "YES") {print(paste("PLOTTING - method quantreg breakpoint at y-max...",sep="")) 
      #                      elf_ymax (inputs, data, x_metric_code, y_metric_code, ws_ftype_code, Feature.Name_code, Hydroid_code, search_code, token)}
-     #if(pw_it == "YES") {print(paste("PLOTTING - method quantreg breakpoint using piecewise function...",sep="")) 
-     #                       elf_pw_it (inputs, data, x_metric_code, y_metric_code, ws_ftype_code, Feature.Name_code, Hydroid_code, search_code, token)}
+     if(pw_it == "YES") {print(paste("PLOTTING - method quantreg breakpoint using piecewise function...",sep="")) 
+                            elf_pw_it (inputs, data, x_metric_code, y_metric_code, ws_ftype_code, Feature.Name_code, Hydroid_code, search_code, token, nhdplus_flowmetric_value, startdate, enddate)}
      #if(twopoint == "YES") {print(paste("PLOTTING - method two-point function...",sep=""))
      #                      elf_twopoint (inputs, data, x_metric_code, y_metric_code, ws_ftype_code, Feature.Name_code, Hydroid_code, search_code, token)}
       nhdplus_erom_plot(site,save_directory,nhdplus_hydroid) 
